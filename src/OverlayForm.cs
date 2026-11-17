@@ -8,6 +8,7 @@ namespace EyeGuard
     internal class OverlayForm : Form
     {
         private readonly bool _primary;
+        private readonly RestMessage _message;
         private readonly Timer _anim;
         private FlatButton _skip;
         private int _restLeft;
@@ -18,9 +19,10 @@ namespace EyeGuard
 
         public event EventHandler SkipRequested;
 
-        public OverlayForm(Screen screen, bool primary, bool allowSkip)
+        public OverlayForm(Screen screen, bool primary, bool allowSkip, RestMessage message)
         {
             _primary = primary;
+            _message = message;
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint |
                      ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
             FormBorderStyle = FormBorderStyle.None;
@@ -29,6 +31,8 @@ namespace EyeGuard
             StartPosition = FormStartPosition.Manual;
             Bounds = screen.Bounds;
             BackColor = Color.FromArgb(10, 15, 21);
+            AutoScaleMode = AutoScaleMode.None;
+            Font = Theme.CreateFont(9f, FontStyle.Regular);
             KeyPreview = true;
 
             if (primary && allowSkip)
@@ -87,11 +91,52 @@ namespace EyeGuard
         private void LayoutSkip()
         {
             if (_skip == null) return;
-            int side = Math.Min(Width, Height);
-            int cx = Width / 2;
-            int cy = Height / 2;
-            int radius = (int)(side * 0.17f);
-            _skip.Location = new Point(cx - _skip.Width / 2, cy + radius + (int)(side * 0.09f));
+            _skip.Bounds = GetRestLayout().Skip;
+        }
+
+        private struct RestLayout
+        {
+            public Rectangle Title, Ring, Clock, Advice, Skip, Hint;
+        }
+
+        private RestLayout GetRestLayout()
+        {
+            int side = Math.Min(ClientSize.Width, ClientSize.Height);
+            int width = Math.Max(1, Math.Min(ClientSize.Width - 48, Math.Max(420, (int)(side * 0.60f))));
+            int x = (ClientSize.Width - width) / 2;
+            int diameter = Math.Max(1, (int)(side * 0.34f));
+            int titleGap = Math.Max(20, (int)(side * 0.035f));
+            int adviceGap = Math.Max(20, (int)(side * 0.028f));
+            int buttonGap = Math.Max(20, (int)(side * 0.028f));
+            const int hintGap = 12;
+            TextFormatFlags wrap = TextFormatFlags.WordBreak | TextFormatFlags.NoPadding;
+
+            using (Font titleFont = Theme.CreateFontPx(Math.Max(20f, side * 0.021f), FontStyle.Bold))
+            using (Font bodyFont = Theme.CreateFontPx(Math.Max(15f, side * 0.0155f), FontStyle.Regular))
+            using (Font tinyFont = Theme.CreateFontPx(Math.Max(11f, side * 0.0105f), FontStyle.Regular))
+            {
+                int titleHeight = TextRenderer.MeasureText(_message.Title, titleFont, new Size(width, int.MaxValue), wrap).Height;
+                int bodyHeight = TextRenderer.MeasureText(_message.Advice, bodyFont, new Size(width, int.MaxValue), wrap).Height;
+                int hintHeight = tinyFont.Height + 4;
+                int totalHeight = titleHeight + titleGap + diameter + adviceGap + bodyHeight;
+                if (_skip != null) totalHeight += buttonGap + _skip.Height + hintGap + hintHeight;
+
+                int y = (ClientSize.Height - totalHeight) / 2;
+                RestLayout layout = new RestLayout();
+                layout.Title = new Rectangle(x, y, width, titleHeight);
+                layout.Ring = new Rectangle((ClientSize.Width - diameter) / 2,
+                    layout.Title.Bottom + titleGap, diameter, diameter);
+                layout.Clock = layout.Ring;
+                // Keep all advice below the ring, including wrapped lines on narrow screens.
+                layout.Advice = new Rectangle(x, layout.Ring.Bottom + adviceGap, width, bodyHeight);
+                if (_skip != null)
+                {
+                    layout.Skip = new Rectangle((ClientSize.Width - _skip.Width) / 2,
+                        layout.Advice.Bottom + buttonGap, _skip.Width, _skip.Height);
+                    layout.Hint = new Rectangle(x, layout.Skip.Bottom + hintGap, width, hintHeight);
+                }
+                return layout;
+            }
         }
 
         protected override void OnResize(EventArgs e)
@@ -138,10 +183,11 @@ namespace EyeGuard
                 g.FillRectangle(back, bounds);
             }
 
-            int side = Math.Min(Width, Height);
-            int cx = Width / 2;
-            int cy = Height / 2;
-            int radius = (int)(side * 0.17f);
+            int side = Math.Min(ClientSize.Width, ClientSize.Height);
+            RestLayout layout = GetRestLayout();
+            int radius = layout.Ring.Width / 2;
+            int cx = layout.Ring.Left + radius;
+            int cy = layout.Ring.Top + radius;
 
             float halo = (float)(0.5 + 0.5 * Math.Sin(_phase));
             int haloRadius = radius + (int)(side * (0.05f + 0.03f * halo));
@@ -157,7 +203,7 @@ namespace EyeGuard
             }
 
             float ringThickness = Math.Max(3f, side * 0.005f);
-            RectangleF ringRect = new RectangleF(cx - radius, cy - radius, radius * 2f, radius * 2f);
+            RectangleF ringRect = layout.Ring;
             using (Pen track = new Pen(Color.FromArgb(34, 44, 56), ringThickness))
             {
                 g.DrawEllipse(track, ringRect);
@@ -183,40 +229,27 @@ namespace EyeGuard
                 }
             }
 
-            string title = _primary ? "该让眼睛歇一会儿了" : "护眼休息";
-            string[] adviceLines = _primary
-                ? new string[] { "看向 6 米以外的物体，放松睫状肌", "也可以闭目养神，让眼球保持湿润" }
-                : new string[] { "闭目养神" };
             string clock = FormatClock(_restLeft);
 
-            using (Font titleFont = Theme.CreateFontPx(Font.FontFamily.Name, Math.Max(20f, side * 0.021f), FontStyle.Bold))
-            using (Font clockFont = Theme.CreateFontPx(Font.FontFamily.Name, Math.Max(46f, side * 0.072f), FontStyle.Bold))
-            using (Font bodyFont = Theme.CreateFontPx(Font.FontFamily.Name, Math.Max(15f, side * 0.0155f), FontStyle.Regular))
-            using (Font tinyFont = Theme.CreateFontPx(Font.FontFamily.Name, Math.Max(11f, side * 0.0105f), FontStyle.Regular))
+            using (Font titleFont = Theme.CreateFontPx(Math.Max(20f, side * 0.021f), FontStyle.Bold))
+            using (Font clockFont = Theme.CreateFontPx(Math.Min(Math.Max(32f, side * 0.072f),
+                layout.Ring.Width * 0.23f), FontStyle.Bold))
+            using (Font bodyFont = Theme.CreateFontPx(Math.Max(15f, side * 0.0155f), FontStyle.Regular))
+            using (Font tinyFont = Theme.CreateFontPx(Math.Max(11f, side * 0.0105f), FontStyle.Regular))
             {
-                Rectangle titleRect = new Rectangle(cx - 400, cy - radius - (int)(side * 0.105f), 800, 44);
-                TextRenderer.DrawText(g, title, titleFont, titleRect, Theme.Muted,
-                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
-
-                Rectangle clockRect = new Rectangle(cx - radius, cy - (int)(side * 0.062f), radius * 2, (int)(side * 0.095f));
-                TextRenderer.DrawText(g, clock, clockFont, clockRect, Theme.Text,
-                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
-
-                Rectangle bodyRect = new Rectangle(cx - 360, cy + (int)(side * 0.082f), 720, 84);
-                int lineHeight = (int)Math.Round(bodyFont.Height * 1.6f);
-                for (int i = 0; i < adviceLines.Length; i++)
-                {
-                    Rectangle lineRect = new Rectangle(bodyRect.X, bodyRect.Y + i * lineHeight, bodyRect.Width, lineHeight);
-                    TextRenderer.DrawText(g, adviceLines[i], bodyFont, lineRect, Theme.Muted,
-                        TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
-                }
+                TextFormatFlags center = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+                    TextFormatFlags.NoPadding;
+                TextRenderer.DrawText(g, _message.Title, titleFont, layout.Title, Theme.Muted,
+                    center | TextFormatFlags.WordBreak);
+                TextRenderer.DrawText(g, clock, clockFont, layout.Clock, Theme.Text,
+                    center | TextFormatFlags.SingleLine);
+                TextRenderer.DrawText(g, _message.Advice, bodyFont, layout.Advice, Theme.Muted,
+                    center | TextFormatFlags.WordBreak);
 
                 if (_primary && _skip != null)
                 {
                     string hint = _skipEnabled ? "按 ESC 也可以跳过" : "休息一下，稍后可以跳过";
-                    Rectangle hintRect = new Rectangle(cx - 300, _skip.Bottom + 16, 600, 28);
-                    TextRenderer.DrawText(g, hint, tinyFont, hintRect, Theme.Mix(Theme.Muted, Theme.Bg, 0.25),
-                        TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+                    TextRenderer.DrawText(g, hint, tinyFont, layout.Hint, Theme.Mix(Theme.Muted, Theme.Bg, 0.25), center);
                 }
             }
         }

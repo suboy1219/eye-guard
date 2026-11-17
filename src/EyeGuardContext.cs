@@ -277,13 +277,14 @@ namespace EyeGuard
             _warned = false;
             _microLeft = Cfg.MicroMinutes * 60;
 
+            RestMessage message = RestMessage.Next();
             if (Cfg.ShowOverlay)
             {
-                ShowOverlays();
+                ShowOverlays(message);
             }
             else
             {
-                ShowToast("该休息了", string.Format("离开屏幕 {0} 分钟，眺望远处放松眼睛。", Cfg.RestMinutes), Theme.Warm);
+                ShowToast(message.Title, string.Format("离开屏幕 {0} 分钟，眺望远处放松眼睛。", Cfg.RestMinutes), Theme.Warm);
             }
 
             UpdateAll();
@@ -331,7 +332,7 @@ namespace EyeGuard
             Cfg.Save();
         }
 
-        private void ShowOverlays()
+        private void ShowOverlays(RestMessage message)
         {
             CloseOverlays();
             Screen[] screens = Screen.AllScreens;
@@ -339,20 +340,20 @@ namespace EyeGuard
             for (int i = 0; i < screens.Length; i++)
             {
                 if (screens[i].Primary) continue;
-                AddOverlay(screens[i], false);
+                AddOverlay(screens[i], false, message);
             }
             for (int i = 0; i < screens.Length; i++)
             {
                 if (!screens[i].Primary) continue;
-                AddOverlay(screens[i], true);
+                AddOverlay(screens[i], true, message);
             }
 
             UpdateOverlays();
         }
 
-        private void AddOverlay(Screen screen, bool primary)
+        private void AddOverlay(Screen screen, bool primary, RestMessage message)
         {
-            OverlayForm overlay = new OverlayForm(screen, primary, Cfg.AllowSkip);
+            OverlayForm overlay = new OverlayForm(screen, primary, Cfg.AllowSkip, message);
             overlay.SkipRequested += delegate
             {
                 if (_main != null && _main.IsHandleCreated)
