@@ -37,6 +37,7 @@ $cscArgs = @(
     "/win32icon:$ico",
     "/r:System.dll",
     "/r:System.Core.dll",
+    "/r:System.Web.Extensions.dll",
     "/r:System.Drawing.dll",
     "/r:System.Windows.Forms.dll"
 ) + $sources

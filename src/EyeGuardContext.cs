@@ -149,6 +149,7 @@ namespace EyeGuard
             menu.Items.Add(reapply);
 
             menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add(UpdateService.CreateHelpMenu());
             ToolStripMenuItem exit = new ToolStripMenuItem("退出护眼卫士");
             exit.Click += delegate { ExitApp(); };
             menu.Items.Add(exit);
