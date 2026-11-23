@@ -2,6 +2,8 @@
 
 # 护眼卫士（EyeGuard）
 
+官网: [https://suboy1219.github.io/suboy](https://suboy1219.github.io/suboy)
+
 简体中文 | [English](README.en.md)
 
 一个常驻 Windows 托盘的轻量护眼工具：按时提醒休息、全屏休息遮罩、20-20-20 远眺提醒、屏幕蓝光过滤。

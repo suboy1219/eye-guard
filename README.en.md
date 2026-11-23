@@ -2,6 +2,8 @@
 
 # EyeGuard
 
+官网: [https://suboy1219.github.io/suboy](https://suboy1219.github.io/suboy)
+
 English | [简体中文](README.md)
 
 A lightweight eye-care tray app for Windows: timed breaks, a full-screen rest overlay, 20-20-20 reminders, and blue-light filtering.
